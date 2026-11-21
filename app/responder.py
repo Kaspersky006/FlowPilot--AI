@@ -1,79 +1,57 @@
-import time
-
-from google import genai
-
-from app.config import GEMINI_API_KEY, GEMINI_MODEL
 from app.models import AnalysisResult, OrderStatus
 
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Fixed reply templates, one per action from the decision engine.
+# The AI is not used here: every fact in a reply comes from the
+# verified order record in the database, so nothing can be invented.
+RESPONSE_TEMPLATES = {
+    "inform_customer_about_delay": (
+        "Your order {order_id} is currently delayed. "
+        "It is at {current_location}, and the expected delivery date "
+        "was {expected_delivery}. We apologize for the inconvenience."
+    ),
+    "confirm_delivery": (
+        "Our records show that your order {order_id} was delivered "
+        "on {expected_delivery}. If you cannot find it, please reply "
+        "and our team will help you."
+    ),
+    "inform_customer_order_is_processing": (
+        "Your order {order_id} is still being processed at {current_location}. "
+        "The expected delivery date is {expected_delivery}."
+    ),
+    "order_not_found": (
+        "We could not find an order with the ID {requested_order_id}. "
+        "Please check the order number and try again."
+    ),
+    "forward_to_refund_team": (
+        "Thank you for your message. Your refund request has been "
+        "forwarded to our refund team, who will contact you."
+    ),
+    "forward_to_payment_support": (
+        "Thank you for your message. Your payment question has been "
+        "forwarded to our payment support team, who will contact you."
+    ),
+    "general_support": (
+        "Thank you for your message. Our support team will get back to you shortly."
+    ),
+}
 
 
 def generate_customer_response(
-    original_message: str,
     analysis: AnalysisResult,
     order: OrderStatus | None,
     action: str,
 ) -> str:
+    """Build the reply from a fixed template and verified order data only."""
 
-    order_information = (
-        order.model_dump_json()
-        if order
-        else "No verified order information is available."
+    template = RESPONSE_TEMPLATES.get(
+        action,
+        RESPONSE_TEMPLATES["general_support"],
     )
 
-    prompt = f"""
-You are a professional customer support assistant.
+    order_data = order.model_dump() if order else {}
 
-Write a short customer-facing response.
-
-Original customer message:
-{original_message}
-
-Request category:
-{analysis.category}
-
-Priority:
-{analysis.priority}
-
-Verified order information:
-{order_information}
-
-Action selected by the support system:
-{action}
-
-Rules:
-- Be polite and concise.
-- Do not invent information.
-- Only use verified information provided above.
-- Do not promise refunds, compensation, delivery dates, or actions
-  that are not explicitly supported by the provided information.
-- If an order was not found, ask the customer to verify the order ID.
-- Return only the customer-facing response.
-"""
-
-    last_error = None
-
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-            )
-
-            if not response.text:
-                raise ValueError(
-                    "Gemini returned an empty response."
-                )
-
-            return response.text.strip()
-
-        except Exception as error:
-            last_error = error
-
-            if attempt < 2:
-                time.sleep(2)
-
-    raise RuntimeError(
-        f"Response generation failed after 3 attempts: {last_error}"
+    return template.format(
+        requested_order_id=analysis.order_id,
+        **order_data,
     )

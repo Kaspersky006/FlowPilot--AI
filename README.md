@@ -1,6 +1,6 @@
 # FlowPilot AI
 
-FlowPilot AI is an AI-powered customer support automation backend built with Python and FastAPI. It analyzes incoming customer requests using the Gemini API, extracts structured information, retrieves verified order data from a SQL database, applies business rules, generates customer-facing responses, and stores processed requests for later retrieval.
+FlowPilot AI is an AI-powered customer support automation backend built with Python and FastAPI. The Gemini API is used only to classify incoming customer requests. All facts come from a SQLite database and fixed business rules: the order data is looked up in the database, the action is chosen by rules, and the customer reply is built from fixed templates. This way, the AI cannot invent order information.
 
 The project demonstrates practical integration of LLMs with REST APIs, structured outputs, SQL persistence, business logic, automated testing, and external API handling.
 
@@ -11,7 +11,7 @@ The project demonstrates practical integration of LLMs with REST APIs, structure
 - Automatic extraction of order IDs from natural-language requests
 - Order lookup using SQLite and SQL queries
 - Rule-based action selection using verified order information
-- AI-generated customer responses
+- Customer responses built from fixed templates and verified order data only
 - Persistent support-request history
 - REST API built with FastAPI
 - Automatic interactive API documentation with Swagger
@@ -53,7 +53,7 @@ Customer Request
                     |
                     v
           +------------------+
-          | Gemini Responder |
+          | Reply Templates  |
           +--------+---------+
                    |
                    v
@@ -82,7 +82,7 @@ FlowPilot:
 2. Extracts the request category, priority, order ID, and summary.
 3. Looks up order `5832` in the SQLite database.
 4. Uses business rules to determine the appropriate action.
-5. Generates a customer-facing response using verified order information.
+5. Builds the customer reply from a fixed template, filled only with verified order data.
 6. Stores the processed request and response in the database.
 
 Example response:
@@ -104,11 +104,11 @@ Example response:
     "current_location": "Munich Distribution Center"
   },
   "action": "inform_customer_about_delay",
-  "customer_response": "Your order 5832 is currently delayed and is at the Munich Distribution Center."
+  "customer_response": "Your order 5832 is currently delayed. It is at Munich Distribution Center, and the expected delivery date was 2026-09-21. We apologize for the inconvenience."
 }
 ```
 
-The exact AI-generated text may vary between requests.
+The AI only produces the `analysis` part. Pydantic validates it: an invalid category, priority or broken JSON is rejected and the request is retried.
 
 ## Tech Stack
 
@@ -164,7 +164,7 @@ Stores processed requests including:
 - Extracted order ID
 - Request summary
 - Selected action
-- Generated customer response
+- Customer response (from templates)
 - Processing timestamp
 
 Parameterized SQL queries are used when reading and writing database records.
@@ -190,7 +190,8 @@ FlowPilot-AI/
 |
 |-- tests/
 |   |-- __init__.py
-|   `-- test_decision.py
+|   |-- test_decision.py
+|   `-- test_responder.py
 |
 |-- .dockerignore
 |-- .gitignore
@@ -253,6 +254,8 @@ Current tests validate important decision-engine behavior including:
 - Delayed orders
 - Missing orders
 - Refund requests
+- Replies containing only database facts
+- Rejection of invalid AI classifications
 
 The tests are intentionally independent of the Gemini API so they can run quickly without consuming API quota.
 

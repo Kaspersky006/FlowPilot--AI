@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -8,8 +8,16 @@ class SupportRequest(BaseModel):
 
 
 class AnalysisResult(BaseModel):
-    category: str
-    priority: str
+    # Literal: Pydantic rejects any value that is not in this list
+    category: Literal[
+        "delivery_issue",
+        "refund_request",
+        "payment_issue",
+        "account_support",
+        "product_question",
+        "other",
+    ]
+    priority: Literal["low", "medium", "high"]
     order_id: Optional[str] = None
     summary: str
 

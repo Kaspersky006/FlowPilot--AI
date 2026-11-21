@@ -92,7 +92,6 @@ def analyze_request(request: SupportRequest):
         )
 
         customer_response = generate_customer_response(
-            original_message=request.message,
             analysis=analysis,
             order=order,
             action=action,
